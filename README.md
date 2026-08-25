@@ -1,21 +1,27 @@
 # IPL Player Comparison (Python)
 
-Compares two IPL players' **runs** and **wickets**, broken down **season by
-season (year by year)**, using the Kaggle dataset:
+Compares IPL players' **runs**, broken down **season by season (year by
+year)**, using the Kaggle dataset:
 [IPL Complete Dataset (2008-2024)](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020)
 
-Two **independent** implementations are included — they don't call each
-other, they each read the dataset and compute the same answer their own way.
+The project has two parts that work together:
+
+- **`most_runs_by_year.py`** — a Flask REST API (and CLI tool) that reads
+  the dataset and reports the top run scorer, team, total runs, and series
+  winner for a given season.
+- **`visualization_app.py`** — a Flask web dashboard that calls the REST
+  API above and renders the results as interactive charts and tables.
 
 ```
 ipl-stats-project/
 ├── data/
-│   ├── matches.csv         <- put the Kaggle file here (see below)
-│   └── deliveries.csv      <- put the Kaggle file here (see below)
+│   ├── matches.csv              <- put the Kaggle file here (see below)
+│   └── deliveries.csv           <- put the Kaggle file here (see below)
 ├── python/
-│   ├── app.py               <- Flask REST API + CLI mode
+│   ├── most_runs_by_year.py     <- Flask REST API + CLI mode
+│   ├── visualization_app.py     <- Web dashboard (calls the REST API)
 │   └── requirements.txt
-
+```
 
 ## 1. Get the dataset
 
@@ -24,68 +30,86 @@ ipl-stats-project/
 2. Unzip it and place **both** `matches.csv` and `deliveries.csv` in the
    `data/` folder of this project.
 
-`matches.csv` provides the season/year for each match (`id`, `season`, ...).
-`deliveries.csv` has the ball-by-ball data (`batter`/`batsman`, `bowler`,
-`batsman_runs`, `is_wicket`, `dismissal_kind`, `match_id`). Both programs join
-these two files on `match_id` to group stats by season. Wickets are only
-credited to the bowler (run outs, retired hurt, and obstruction are excluded,
-matching real cricket scoring rules).
+`matches.csv` provides the season/year and winner for each match (`id`,
+`season`, `winner`, `date`, ...). `deliveries.csv` has the ball-by-ball data
+(`batter`, `batsman_runs`, `batting_team`, `match_id`). Both scripts join
+these two files on `match_id` to aggregate runs per player per season, and
+determine each season's series winner from the last match played that
+season.
 
-## 2. Python — REST API
+## 2. Install dependencies
 
-### A. Most Runs by Year API (`most_runs_by_year.py`)
+```bash
+cd python
+pip install flask
+```
 
-Reports the top run scorer, team, total runs, and series winner for any season, protected with **Bearer Token authentication**.
+## 3. Most Runs by Year API (`most_runs_by_year.py`)
 
-#### 1. Start the server
+Reports the top run scorer, their team, total runs, and the series winner
+for any season. All data endpoints are protected with **Bearer Token
+authentication**.
+
+### Start the server
+
 ```bash
 cd python
 python most_runs_by_year.py
 ```
 *(Runs on `http://127.0.0.1:5005`)*
 
-> **Authentication**:
-> - Default Token: `ipl-secret-token-2026`
-> - Custom Token: set the environment variable `API_BEARER_TOKEN`
+> **Authentication**
+> The server reads its token from the `API_BEARER_TOKEN` environment
+> variable — there is no built-in default, so you must set it before
+> starting the server, e.g.:
+> ```bash
+> # macOS/Linux
+> export API_BEARER_TOKEN="ipl-secret-token-2026"
+> # Windows PowerShell
+> $env:API_BEARER_TOKEN = "ipl-secret-token-2026"
+> ```
+> Requests without a matching token receive a `401 Unauthorized` response.
 
----
+### Querying the API
 
-#### 2. Querying the API
-
-**Option 1: In PowerShell (Windows)**
+**Option 1: PowerShell (Windows)**
 ```powershell
 $headers = @{ "Authorization" = "Bearer ipl-secret-token-2026" }
 Invoke-RestMethod -Uri "http://127.0.0.1:5005/stats?year=2016" -Headers $headers
 ```
 
-**Option 2: Using `curl.exe`**
+**Option 2: `curl.exe`**
 ```powershell
 curl.exe -H "Authorization: Bearer ipl-secret-token-2026" "http://127.0.0.1:5005/stats?year=2016"
 ```
 
-**Option 3: Using Query Parameter (Browser or Web Client)**
+**Option 3: Query parameter (browser or web client)**
 ```
 http://127.0.0.1:5005/stats?year=2016&token=ipl-secret-token-2026
 ```
 
-#### 3. Available Endpoints
+### Available endpoints
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/stats?year=2016` | `GET` | Get top batsman & series winner for year |
-| `/most-runs/2016` | `GET` | Path parameter format |
-| `/stats/all` | `GET` | Get statistics for all seasons |
-| `/seasons` | `GET` | List all available seasons in dataset |
-| `/` | `GET` | API status and endpoint directory |
+| `/stats?year=2016` | `GET` | Top batsman, team, total runs & series winner for a season |
+| `/most-runs?year=2016` / `/api/most-runs?year=2016` | `GET` | Aliases for `/stats` |
+| `/stats/2016` / `/most-runs/2016` | `GET` | Same as above, with year as a path parameter |
+| `/stats/all` / `/all-stats` | `GET` | Stats for every available season |
+| `/seasons` / `/years` | `GET` | List all available seasons in the dataset |
+| `/` | `GET` | API status and endpoint directory; also accepts `?year=` for a quick lookup |
 
----
+All endpoints except `/` (without `?year=`) require a Bearer token, either
+as an `Authorization: Bearer <TOKEN>` header or a `?token=` / `?api_key=`
+query parameter.
 
-#### 4. Run directly in CLI (No Server)
+### Run directly in CLI (no server, no auth needed)
+
 ```bash
 python most_runs_by_year.py 2016
 ```
 
-**Output**:
+**Output:**
 ```text
 Year: 2016
 Player with most runs: V Kohli
@@ -94,62 +118,70 @@ Total runs: 973
 Series winner: Sunrisers Hyderabad
 ```
 
----
+You can also run it with no arguments for an interactive prompt
+(`cli_interactive`), which asks you to type in a year.
 
-### B. Visualization Dashboard App (`visualization_app.py`)
+## 4. Visualization Dashboard (`visualization_app.py`)
 
-A modern web dashboard running on port **`8080`** that connects to the REST API on port **`5005`** with **Bearer Token authentication**:
-- **Top Batsman Runs by Season** (Interactive Bar Chart)
-- **Series Winners Championship Distribution** (Doughnut Chart)
-- **Top Scoring Titles per Player** (Horizontal Bar Chart)
-- **Summary Metrics & Full Season Breakdown Table**
-- **Bearer Token Auth Control**: UI token input bar + API protection
+A web dashboard on port **`8080`** that calls the REST API on port
+**`5005`** and renders:
 
-#### How to run:
-1. First, start the backend REST API in one terminal:
+- **Top Batsman Runs by Season** (bar chart)
+- **Series Winners Distribution** (doughnut chart)
+- **Most Season-Leading Run Scorer Titles** (horizontal bar chart)
+- **Summary metric cards** and a **full season-by-season table**
+- A **Bearer Token auth gate** — the dashboard stays locked until a valid
+  token is entered
+
+### How to run
+
+1. Start the backend REST API in one terminal (see section 3 above — make
+   sure `API_BEARER_TOKEN` is set first):
    ```bash
    cd python
    python most_runs_by_year.py
    ```
-2. In a second terminal, start the visualizer:
+2. In a second terminal, start the visualizer. Point it at the same token
+   and, if needed, a different API URL:
    ```bash
    cd python
+   # optional overrides — visualization_app.py defaults to
+   # API_BASE_URL=http://127.0.0.1:5005 and
+   # API_BEARER_TOKEN=ipl-secret-token-2026 if these aren't set
+   export API_BEARER_TOKEN="ipl-secret-token-2026"
+   export API_BASE_URL="http://127.0.0.1:5005"
+   export VIS_PORT=8080
    python visualization_app.py
    ```
-3. Open your browser to **[http://127.0.0.1:8080](http://127.0.0.1:8080)**.
-   - The dashboard opens in a **Locked State** (no data is shown).
-   - Enter your Bearer Token (`ipl-secret-token-2026`) into the input box and click **Unlock Dashboard** to view all charts and tables.
-   - You can also bypass the prompt by visiting with a token in the URL: `http://127.0.0.1:8080/?token=ipl-secret-token-2026`.
+3. Open your browser to **http://127.0.0.1:8080**.
+   - The dashboard opens in a **locked state** — no data is shown.
+   - Enter your Bearer token into the input box and click **Unlock
+     Dashboard** to view all charts and tables.
+   - You can also skip the prompt by including the token in the URL:
+     `http://127.0.0.1:8080/?token=ipl-secret-token-2026`.
 
----
+> **Note:** Unlike `most_runs_by_year.py`, `visualization_app.py` *does*
+> fall back to a default token (`ipl-secret-token-2026`) if
+> `API_BEARER_TOKEN` isn't set. For the dashboard to actually fetch data,
+> this token must match whatever `API_BEARER_TOKEN` you started
+> `most_runs_by_year.py` with.
 
-### C. Player Comparison CLI (`ipl_season_stats.py`)
+### Dashboard proxy endpoints
 
-```bash
-# Run one-off CLI comparison:
-python ipl_season_stats.py
-```
-
-## 3. Java — standalone program
-
-```bash
-cd java
-javac MostRunsByYear.java
-java MostRunsByYear
-```
-
-## Sample output
-
-```
-Year: 2016
-Player with most runs: V Kohli
-Team: Royal Challengers Bangalore
-Total runs: 973
-Series winner: Sunrisers Hyderabad
-```
+| Endpoint | Description |
+| :--- | :--- |
+| `/api/health` | Checks connectivity to the backend REST API |
+| `/api/all-stats` | Fetches and aggregates stats for every season for the dashboard |
+| `/` | Serves the dashboard HTML page |
 
 ## Notes
 
-- Player names and stats are aggregated directly from `deliveries.csv` and `matches.csv`.
-- Supported seasons include `2007/08`, `2009`, `2009/10`, `2011` through `2024`.
-
+- Player names and stats are aggregated directly from `deliveries.csv` and
+  `matches.csv` — nothing is hardcoded.
+- Supported seasons include `2007/08`, `2009`, `2009/10`, `2011` through
+  `2024` (whatever seasons exist in your copy of `matches.csv`). You can
+  query using either the full season string (e.g. `2007/08`) or a
+  four-digit year (e.g. `2008`) — the API will match it to the closest
+  season label.
+- Keep your Bearer token out of version control; treat it like a secret
+  and set it via environment variables rather than hardcoding it.
