@@ -10,8 +10,9 @@ app = Flask(__name__)
 
 # Configuration
 PORT = int(os.environ.get("VIS_PORT", 8080))
+HOST = os.environ.get("HOST", "0.0.0.0")
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:5005")
-API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN", "ipl-secret-token-2026")
+API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN" )
 
 
 def require_auth(f):
@@ -843,4 +844,4 @@ if __name__ == "__main__":
     print("----------------------------------------------------------")
     print(f"Open Dashboard:    http://127.0.0.1:{PORT}")
     print("==========================================================\n")
-    app.run(host="127.0.0.1", port=PORT, debug=False)
+    app.run(host=HOST, port=PORT, debug=False)
