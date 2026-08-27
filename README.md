@@ -44,6 +44,78 @@ cd python
 pip install flask
 ```
 
+## 2a. Run with Docker Compose
+
+Docker Compose runs the REST API and dashboard as separate services. The
+dataset in `data/` is copied into both containers at build time.
+
+### Windows PowerShell
+
+After downloading or cloning this project, open PowerShell and change into the
+project folder. The folder must contain `docker-compose.yml`.
+
+```powershell
+cd C:\path\to\project
+$env:API_BEARER_TOKEN = "replace-with-a-secret-token"
+docker compose up --build
+```
+
+### macOS/Linux
+
+```bash
+cd /path/to/project
+export API_BEARER_TOKEN="replace-with-a-secret-token"
+docker compose up --build
+```
+
+Open the dashboard at **http://localhost:8080** and enter the same token.
+The API is also available at **http://localhost:5005**. Stop the services with:
+
+```powershell
+docker compose down
+```
+
+Keep `API_BEARER_TOKEN` out of version control. To use a different host port,
+change the left-hand side of the `ports` entries in `docker-compose.yml`.
+
+### Run the published GitHub images
+
+The images can also be pulled from GitHub Container Registry. Log in with a
+GitHub token that has `read:packages` permission:
+
+```powershell
+docker login ghcr.io -u shahharsh-99
+docker pull ghcr.io/shahharsh-99/ipl-stats-project-api:latest
+docker pull ghcr.io/shahharsh-99/ipl-stats-project-dashboard:latest
+```
+
+To run the published images together, create a Docker network and provide the
+same token to both containers. Replace the example token with your own value:
+
+```powershell
+docker network create ipl-network
+$env:API_BEARER_TOKEN = "replace-with-a-secret-token"
+
+docker run -d --name ipl-api --network ipl-network `
+  -e API_BEARER_TOKEN `
+  -p 5005:5005 `
+  ghcr.io/shahharsh-99/ipl-stats-project-api:latest
+
+docker run -d --name ipl-dashboard --network ipl-network `
+  -e API_BEARER_TOKEN `
+  -e API_BASE_URL=http://ipl-api:5005 `
+  -p 8080:8080 `
+  ghcr.io/shahharsh-99/ipl-stats-project-dashboard:latest
+```
+
+Open **http://localhost:8080** and enter the same token. Stop and remove the
+containers when finished:
+
+```powershell
+docker rm -f ipl-dashboard ipl-api
+docker network rm ipl-network
+```
+
 ## 3. Most Runs by Year API (`most_runs_by_year.py`)
 
 Reports the top run scorer, their team, total runs, and the series winner
