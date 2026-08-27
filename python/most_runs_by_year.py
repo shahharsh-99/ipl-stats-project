@@ -15,6 +15,7 @@ DELIVERIES_PATH = DATA_DIR / "deliveries.csv"
 
 # Configurable Bearer Token (can be customized via environment variable API_BEARER_TOKEN)
 API_BEARER_TOKEN = os.environ.get("API_BEARER_TOKEN")
+HOST = os.environ.get("HOST", "0.0.0.0")
 
 # Global data caches
 match_year = {}       # match_id -> season
@@ -313,4 +314,4 @@ if __name__ == "__main__":
     else:
         PORT = 5005
         print(f"IPL Stats REST API Server running on http://127.0.0.1:{PORT} (Bearer token: {API_BEARER_TOKEN})")
-        app.run(host="127.0.0.1", port=PORT, debug=False)
+        app.run(host=HOST, port=PORT, debug=False)
